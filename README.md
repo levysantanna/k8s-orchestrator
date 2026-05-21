@@ -127,7 +127,15 @@ python scripts/migrate.py upgrade
 
 ## License
 
-MIT License
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+**Key Points:**
+- ✅ Free to use, modify, and distribute
+- ✅ Must disclose source code
+- ✅ Must use the same license for derivatives
+- ✅ No warranty provided
+
+For more information: https://www.gnu.org/licenses/gpl-3.0.html
 
 ## Support
 

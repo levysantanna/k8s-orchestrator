@@ -1,0 +1,15 @@
+K8s Orchestrator
+Copyright (C) 2026 K8s Orchestrator Contributors
+
+This project uses the following open source libraries:
+
+- Flask (BSD-3-Clause) - https://flask.palletsprojects.com/
+- SQLAlchemy (MIT) - https://www.sqlalchemy.org/
+- Kubernetes Python Client (Apache-2.0) - https://github.com/kubernetes-client/python
+- Bootstrap (MIT) - https://getbootstrap.com/
+- Font Awesome (CC BY 4.0, SIL OFL 1.1, MIT) - https://fontawesome.com/
+
+For the complete list of dependencies, see requirements.txt
+
+This program is free software under the GNU General Public License v3.0.
+See LICENSE file for full license terms.
