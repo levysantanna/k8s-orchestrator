@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Add Cluster via SSH{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('cluster.list_clusters') }}">Clusters</a></li>
+                <li class="breadcrumb-item active">Add via SSH</li>
+            </ol>
+        </nav>
+        <h2><i class="fas fa-terminal"></i> Add Existing Cluster via SSH</h2>
+        <p class="text-muted">Connect using SSH and automatically retrieve the kubeconfig</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <strong>SSH Connection Details</strong>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('cluster.add_via_ssh') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Cluster Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               placeholder="e.g., production-cluster">
+                        <small class="form-text text-muted">A friendly name to identify this cluster</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description" name="description" rows="2"
+                                  placeholder="e.g., Production Kubernetes cluster"></textarea>
+                    </div>
+
+                    <hr>
+                    <h5 class="mb-3"><i class="fas fa-network-wired"></i> SSH Connection</h5>
+
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="ssh_host" class="form-label">Server IP/Hostname <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ssh_host" name="ssh_host" required
+                                   placeholder="192.168.1.10">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="ssh_port" class="form-label">SSH Port</label>
+                            <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_username" class="form-label">SSH Username <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ssh_username" name="ssh_username" required
+                               placeholder="root">
+                        <small class="form-text text-muted">User must have access to kubeconfig file</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Authentication Method</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="auth_method" id="auth_key" value="key" checked
+                                   onchange="toggleAuthMethod()">
+                            <label class="btn btn-outline-primary" for="auth_key">
+                                <i class="fas fa-key"></i> Private Key
+                            </label>
+
+                            <input type="radio" class="btn-check" name="auth_method" id="auth_password" value="password"
+                                   onchange="toggleAuthMethod()">
+                            <label class="btn btn-outline-primary" for="auth_password">
+                                <i class="fas fa-lock"></i> Password
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Private Key Section -->
+                    <div id="key-section">
+                        <div class="mb-3">
+                            <label for="ssh_key_file" class="form-label">
+                                <i class="fas fa-file-upload"></i> Private Key File
+                            </label>
+                            <input type="file" class="form-control" id="ssh_key_file" name="ssh_key_file">
+                            <small class="form-text text-muted">Upload your SSH private key (e.g., id_rsa, id_ed25519)</small>
+                        </div>
+
+                        <div class="text-center mb-2">
+                            <small class="text-muted">— OR —</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="ssh_key_text" class="form-label">
+                                <i class="fas fa-paste"></i> Paste Private Key
+                            </label>
+                            <textarea class="form-control font-monospace" id="ssh_key_text" name="ssh_key_text" rows="6"
+                                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Password Section -->
+                    <div id="password-section" style="display: none;">
+                        <div class="mb-3">
+                            <label for="ssh_password" class="form-label">SSH Password <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control" id="ssh_password" name="ssh_password">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="mb-3">
+                        <label for="kubeconfig_path" class="form-label">Kubeconfig Path on Server</label>
+                        <select class="form-select" id="kubeconfig_path" name="kubeconfig_path">
+                            <option value="/etc/rancher/k3s/k3s.yaml" selected>k3s - /etc/rancher/k3s/k3s.yaml</option>
+                            <option value="~/.kube/config">Standard - ~/.kube/config</option>
+                            <option value="/root/.kube/config">/root/.kube/config</option>
+                            <option value="custom">Custom path...</option>
+                        </select>
+                        <input type="text" class="form-control mt-2" id="custom_path" name="custom_kubeconfig_path"
+                               style="display: none;" placeholder="/path/to/kubeconfig">
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('cluster.list_clusters') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plug"></i> Connect and Add
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card bg-light">
+            <div class="card-header">
+                <strong><i class="fas fa-lightbulb"></i> Requirements</strong>
+            </div>
+            <div class="card-body">
+                <h6>SSH Access</h6>
+                <ul class="small">
+                    <li>SSH access to Kubernetes master node</li>
+                    <li>User with read access to kubeconfig</li>
+                    <li>For k3s: root or user in k3s group</li>
+                </ul>
+
+                <h6 class="mt-3">Private Key (Recommended)</h6>
+                <p class="small">More secure than password authentication</p>
+                <ul class="small">
+                    <li>Upload your private key file</li>
+                    <li>Or paste the key content</li>
+                    <li>Key must match authorized_keys on server</li>
+                </ul>
+
+                <h6 class="mt-3">What Happens Next?</h6>
+                <ol class="small">
+                    <li>Connect to server via SSH</li>
+                    <li>Retrieve kubeconfig file</li>
+                    <li>Configure API server endpoint</li>
+                    <li>Add cluster to dashboard</li>
+                </ol>
+
+                <hr>
+
+                <h6>Have Kubeconfig File?</h6>
+                <p class="small">If you already have the kubeconfig file downloaded:</p>
+                <a href="{{ url_for('cluster.add_cluster') }}?method=kubeconfig" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-file-upload"></i> Upload Kubeconfig
+                </a>
+            </div>
+        </div>
+
+        <div class="card bg-info text-white mt-3">
+            <div class="card-body">
+                <h6><i class="fas fa-rocket"></i> Need to Install k3s?</h6>
+                <p class="small mb-2">If you want to install a new k3s cluster on a fresh server:</p>
+                <a href="{{ url_for('deployment.k3s_deploy_form') }}" class="btn btn-sm btn-light">
+                    <i class="fas fa-rocket"></i> Deploy New k3s Cluster
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleAuthMethod() {
+    const useKey = document.getElementById('auth_key').checked;
+    document.getElementById('key-section').style.display = useKey ? 'block' : 'none';
+    document.getElementById('password-section').style.display = useKey ? 'none' : 'block';
+}
+
+document.getElementById('kubeconfig_path').addEventListener('change', function() {
+    const customPath = document.getElementById('custom_path');
+    if (this.value === 'custom') {
+        customPath.style.display = 'block';
+        customPath.required = true;
+    } else {
+        customPath.style.display = 'none';
+        customPath.required = false;
+    }
+});
+</script>
+
+{% endblock %}

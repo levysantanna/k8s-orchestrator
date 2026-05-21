@@ -121,23 +121,28 @@
                             <i class="fas fa-home"></i> Dashboard
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('cluster.list_clusters') }}">
-                            <i class="fas fa-server"></i> Clusters
-                        </a>
-                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-rocket"></i> Deploy
+                            <i class="fas fa-server"></i> Clusters
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('deployment.k3s_deploy_form') }}">
-                                <i class="fas fa-rocket"></i> Deploy New k3s
+                            <li><a class="dropdown-item" href="{{ url_for('cluster.list_clusters') }}">
+                                <i class="fas fa-list"></i> View All Clusters
                             </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('deployment.connect_ssh_form') }}">
-                                <i class="fas fa-plug"></i> Connect via SSH
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Add Existing Cluster</h6></li>
+                            <li><a class="dropdown-item" href="{{ url_for('cluster.add_cluster') }}?method=kubeconfig">
+                                <i class="fas fa-file-upload"></i> Via Kubeconfig File
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('cluster.add_cluster') }}?method=ssh">
+                                <i class="fas fa-terminal"></i> Via SSH Connection
                             </a></li>
                         </ul>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('deployment.k3s_deploy_form') }}">
+                            <i class="fas fa-rocket"></i> Deploy New k3s
+                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#">
