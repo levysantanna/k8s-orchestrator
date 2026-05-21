@@ -41,9 +41,9 @@ COPY --chown=appuser:appuser . .
 RUN mkdir -p /app/data /app/logs && \
     chown -R appuser:appuser /app/data /app/logs
 
-# Initialize database (runs as root, then changes ownership)
-RUN python scripts/init-db.py && \
-    chown -R appuser:appuser /app/data
+# Copy and set up entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Switch to non-root user
 USER appuser
@@ -55,5 +55,6 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
-# Run application
+# Set entrypoint and default command
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["python", "app.py"]
