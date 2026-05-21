@@ -9,7 +9,9 @@ A Flask-based web dashboard for managing multiple Kubernetes clusters, deploying
 - **Resource Monitoring**: View pods, deployments, statefulsets, and persistent storage across clusters
 - **Metrics Collection**: Real-time CPU, RAM, and disk metrics via SSH and Kubernetes API
 - **Storage Management**: Install and configure Rook-Ceph distributed storage
+- **PVC Replication**: Cross-cluster PVC syncing with two operator options (rsync or Ceph RBD mirroring)
 - **Cluster Expansion**: Auto-discovery and addition of new nodes
+- **k3s Deployment**: Deploy k3s to remote servers using only SSH credentials
 
 ## Architecture
 
@@ -65,6 +67,9 @@ k8s-orchestrator/
 ├── controllers/            # Flask blueprints
 ├── templates/              # Jinja2 templates
 ├── static/                 # CSS, JavaScript
+├── operators/              # Kubernetes operators
+│   ├── ceph-mirror-operator/  # Ceph RBD mirroring
+│   └── pvc-replicator/        # rsync-based PVC replication
 ├── k8s/                    # Kubernetes manifests
 └── scripts/                # Deployment scripts
 ```
@@ -106,6 +111,74 @@ All configuration via environment variables in `.env`:
 2. Click **Install Operator**
 3. Configure Ceph cluster settings
 4. Click **Create Cluster**
+
+### Replicating Persistent Volumes
+
+The orchestrator includes two Kubernetes operators for cross-cluster PVC replication:
+
+#### Ceph RBD Mirror Operator (Recommended for Rook-Ceph)
+Uses native Ceph RBD mirroring for block-level replication.
+
+```bash
+# Install CRD and operator
+kubectl apply -f operators/ceph-mirror-operator/crd.yaml
+kubectl apply -f operators/ceph-mirror-operator/deployment.yaml
+
+# Create mirror configuration
+kubectl apply -f - <<EOF
+apiVersion: storage.k8s-orchestrator.io/v1
+kind: CephMirror
+metadata:
+  name: production-backup
+  namespace: rook-ceph
+spec:
+  sourcePool: replicapool
+  targetCluster:
+    kubeconfig: kubeconfig-backup-cluster
+    namespace: rook-ceph
+  mirrorMode: pool
+  direction: one-way
+  snapshotSchedule: "0 */6 * * *"
+EOF
+```
+
+**Advantages:**
+- Block-level replication (faster, more efficient)
+- Native Ceph feature (more reliable)
+- Lower network overhead
+- Integrated with Rook-Ceph
+
+See [operators/ceph-mirror-operator/README.md](operators/ceph-mirror-operator/README.md) for details.
+
+#### PVC Replicator Operator (Universal)
+Uses rsync for filesystem-level replication (works with any storage class).
+
+```bash
+# Install CRD and operator
+kubectl apply -f operators/pvc-replicator/crd.yaml
+kubectl apply -f operators/pvc-replicator/deployment.yaml
+
+# Create replication configuration
+kubectl apply -f - <<EOF
+apiVersion: pvcreplicator.k8s-orchestrator.io/v1
+kind: PVCReplication
+metadata:
+  name: database-backup
+  namespace: production
+spec:
+  sourcePVC: postgres-data
+  targetCluster: backup-cluster
+  targetNamespace: production-backup
+  schedule: "0 */6 * * *"
+EOF
+```
+
+**Advantages:**
+- Works with any storage class (not just Ceph)
+- Simple rsync-based approach
+- Easy to understand and troubleshoot
+
+See [operators/pvc-replicator/README.md](operators/pvc-replicator/README.md) for details.
 
 ## Development
 
