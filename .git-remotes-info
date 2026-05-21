@@ -1,0 +1,57 @@
+# Git Remotes Configuration
+
+This repository is configured to push to two remote locations:
+
+## Remotes:
+
+1. **GitHub** (origin fetch + push)
+   - URL: git@github.com:levysantanna/k8s-orchestrator.git
+   - Public repository
+   - CI/CD workflows enabled
+
+2. **Local GitServer** (origin push)
+   - URL: ssh://git@localhost:2223/git/k8s-orchestrator.git
+   - Container: gitserver (port 2223)
+   - Local backup and development
+
+## Commands:
+
+```bash
+# Push to both remotes at once (default behavior)
+git push origin main
+
+# Push to GitHub only
+git push git@github.com:levysantanna/k8s-orchestrator.git main
+
+# Push to local gitserver only
+git push local main
+
+# View all remotes
+git remote -v
+```
+
+## Setup:
+
+```bash
+# Add local gitserver as remote
+git remote add local ssh://git@localhost:2223/git/k8s-orchestrator.git
+
+# Configure origin to push to both
+git remote set-url --add --push origin git@github.com:levysantanna/k8s-orchestrator.git
+git remote set-url --add --push origin ssh://git@localhost:2223/git/k8s-orchestrator.git
+```
+
+## GitServer Container:
+
+- **Container**: gitserver
+- **SSH Port**: 2223
+- **User**: git
+- **Repositories Path**: /git/
+- **Status**: Check with `docker ps --filter "name=git"`
+
+## Benefits:
+
+✅ Automatic dual backup on every push
+✅ Local copy always available (even offline)
+✅ GitHub for CI/CD and public access
+✅ GitServer for private local development
