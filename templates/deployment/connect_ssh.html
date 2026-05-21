@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Connect via SSH{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="fas fa-plug"></i> Connect to Existing Cluster via SSH</h2>
+        <p class="text-muted">Connect to an already deployed k3s/k8s cluster using only SSH credentials</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <strong>SSH Connection Configuration</strong>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('deployment.connect_ssh') }}" enctype="multipart/form-data">
+                    <h5 class="mb-3">Cluster Information</h5>
+
+                    <div class="mb-3">
+                        <label for="cluster_name" class="form-label">Cluster Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cluster_name" name="cluster_name" required>
+                        <small class="form-text text-muted">Name for this cluster in the orchestrator</small>
+                    </div>
+
+                    <hr>
+                    <h5 class="mb-3">SSH Configuration</h5>
+
+                    <div class="mb-3">
+                        <label for="ssh_host" class="form-label">SSH Host (Master Node) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ssh_host" name="ssh_host"
+                               placeholder="192.168.1.100 or master.example.com" required>
+                        <small class="form-text text-muted">SSH to the master/control-plane node</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_port" class="form-label">SSH Port</label>
+                        <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_username" class="form-label">SSH Username <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ssh_username" name="ssh_username" required>
+                        <small class="form-text text-muted">User must have access to kubeconfig</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_key_file" class="form-label">SSH Private Key <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="ssh_key_file" name="ssh_key_file" accept=".pem,.key">
+                        <small class="form-text text-muted">Or paste below</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_key_content" class="form-label">Or Paste SSH Private Key</label>
+                        <textarea class="form-control font-monospace" id="ssh_key_content" name="ssh_key_content"
+                                  rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_password" class="form-label">SSH Key Passphrase (if encrypted)</label>
+                        <input type="password" class="form-control" id="ssh_password" name="ssh_password">
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>What This Does:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Connects to your master node via SSH</li>
+                            <li>Retrieves the kubeconfig from <code>/etc/rancher/k3s/k3s.yaml</code></li>
+                            <li>Adds the cluster to the orchestrator</li>
+                            <li>No installation or modification of your cluster</li>
+                        </ul>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('cluster.list_clusters') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plug"></i> Connect Cluster
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-info-circle"></i> Requirements</strong>
+            </div>
+            <div class="card-body">
+                <h6>Supported Clusters</h6>
+                <ul class="small">
+                    <li>k3s (any version)</li>
+                    <li>Standard Kubernetes</li>
+                    <li>k0s, RKE, RKE2</li>
+                </ul>
+
+                <hr>
+
+                <h6>SSH Access</h6>
+                <p class="small">
+                    The SSH user must have permission to read:
+                </p>
+                <pre class="bg-dark text-light p-2 small"><code>/etc/rancher/k3s/k3s.yaml</code></pre>
+                <p class="small">
+                    Typically requires root or sudo access.
+                </p>
+
+                <hr>
+
+                <h6>Connection Time</h6>
+                <p class="small">
+                    Instant - only retrieves kubeconfig, no installation.
+                </p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <strong><i class="fas fa-rocket"></i> Alternative</strong>
+            </div>
+            <div class="card-body">
+                <p class="small">Need to deploy a new k3s cluster?</p>
+                <a href="{{ url_for('deployment.k3s_deploy_form') }}" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="fas fa-rocket"></i> Deploy New k3s
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

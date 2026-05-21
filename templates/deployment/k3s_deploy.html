@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Deploy k3s{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="fas fa-rocket"></i> Deploy k3s to Remote Server</h2>
+        <p class="text-muted">Install a new k3s cluster on a remote server via SSH</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <strong>k3s Deployment Configuration</strong>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('deployment.k3s_deploy') }}" enctype="multipart/form-data">
+                    <h5 class="mb-3">Cluster Information</h5>
+
+                    <div class="mb-3">
+                        <label for="cluster_name" class="form-label">Cluster Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cluster_name" name="cluster_name" required>
+                        <small class="form-text text-muted">Unique name for this cluster in the orchestrator</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="k3s_version" class="form-label">k3s Version</label>
+                        <select class="form-select" id="k3s_version" name="k3s_version">
+                            <option value="stable" selected>Stable (Recommended)</option>
+                            <option value="latest">Latest</option>
+                            <option value="v1.28.5+k3s1">v1.28.5</option>
+                            <option value="v1.27.9+k3s1">v1.27.9</option>
+                        </select>
+                    </div>
+
+                    <hr>
+                    <h5 class="mb-3">SSH Configuration</h5>
+
+                    <div class="mb-3">
+                        <label for="ssh_host" class="form-label">SSH Host <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ssh_host" name="ssh_host"
+                               placeholder="192.168.1.100 or server.example.com" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_port" class="form-label">SSH Port</label>
+                        <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_username" class="form-label">SSH Username <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="ssh_username" name="ssh_username"
+                               placeholder="root or user with sudo access" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_key_file" class="form-label">SSH Private Key <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="ssh_key_file" name="ssh_key_file" accept=".pem,.key">
+                        <small class="form-text text-muted">Or paste below</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_key_content" class="form-label">Or Paste SSH Private Key</label>
+                        <textarea class="form-control font-monospace" id="ssh_key_content" name="ssh_key_content"
+                                  rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="ssh_password" class="form-label">SSH Key Passphrase (if encrypted)</label>
+                        <input type="password" class="form-control" id="ssh_password" name="ssh_password">
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Requirements:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Remote server must be running a supported OS (Ubuntu, Debian, RHEL, etc.)</li>
+                            <li>User must have root access or passwordless sudo</li>
+                            <li>Port 6443 must be available</li>
+                            <li>Minimum 2GB RAM recommended</li>
+                        </ul>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('cluster.list_clusters') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-rocket"></i> Deploy k3s
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-question-circle"></i> Help</strong>
+            </div>
+            <div class="card-body">
+                <h6>What This Does</h6>
+                <p class="small">This will:</p>
+                <ol class="small">
+                    <li>Connect to your server via SSH</li>
+                    <li>Install k3s using the official installer</li>
+                    <li>Retrieve the kubeconfig</li>
+                    <li>Add the cluster to the orchestrator</li>
+                    <li>Provide the join token for adding workers</li>
+                </ol>
+
+                <hr>
+
+                <h6>Deployment Time</h6>
+                <p class="small">
+                    Typically takes <strong>2-5 minutes</strong> depending on server speed and network.
+                </p>
+
+                <hr>
+
+                <h6>SSH Key Format</h6>
+                <p class="small">
+                    Supports OpenSSH, RSA, Ed25519 private keys.
+                </p>
+                <pre class="bg-dark text-light p-2 small"><code>ssh-keygen -t ed25519 -C "k3s-deploy"</code></pre>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <strong><i class="fas fa-link"></i> Alternative</strong>
+            </div>
+            <div class="card-body">
+                <p class="small">Already have a k3s/k8s cluster?</p>
+                <a href="{{ url_for('deployment.connect_ssh_form') }}" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="fas fa-plug"></i> Connect Existing Cluster
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

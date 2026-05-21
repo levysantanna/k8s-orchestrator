@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Deployment Success{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="fas fa-check-circle text-success"></i> k3s Deployed Successfully!</h2>
+        <p class="text-muted">Your cluster is ready to use</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <strong><i class="fas fa-info-circle"></i> Deployment Information</strong>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th width="30%">Cluster Name:</th>
+                        <td><strong>{{ result.cluster_name }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Cluster ID:</th>
+                        <td>{{ result.cluster_id }}</td>
+                    </tr>
+                    <tr>
+                        <th>API Server:</th>
+                        <td><code>{{ result.api_server }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>k3s Version:</th>
+                        <td>{{ result.k3s_version }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                </table>
+
+                <hr>
+
+                <h5>Next Steps</h5>
+                <ol>
+                    <li>
+                        <a href="{{ url_for('cluster.detail', cluster_id=result.cluster_id) }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-eye"></i> View Cluster Details
+                        </a>
+                    </li>
+                    <li class="mt-2">Add worker nodes using the join command below</li>
+                    <li class="mt-2">Deploy applications to your cluster</li>
+                </ol>
+            </div>
+        </div>
+
+        {% if result.k3s_token %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <strong><i class="fas fa-server"></i> Add Worker Nodes</strong>
+            </div>
+            <div class="card-body">
+                <p>Run this command on each worker node to join the cluster:</p>
+                <pre class="bg-dark text-light p-3"><code>curl -sfL https://get.k3s.io | K3S_URL={{ result.api_server }} K3S_TOKEN={{ result.k3s_token }} sh -</code></pre>
+
+                <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent.trim())">
+                    <i class="fas fa-copy"></i> Copy Command
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <strong><i class="fas fa-file-code"></i> Kubeconfig</strong>
+            </div>
+            <div class="card-body">
+                <p>Save this kubeconfig to access your cluster with kubectl:</p>
+                <pre class="bg-dark text-light p-3" style="max-height: 400px; overflow-y: auto;"><code>{{ result.kubeconfig }}</code></pre>
+
+                <button class="btn btn-sm btn-outline-secondary" onclick="downloadKubeconfig()">
+                    <i class="fas fa-download"></i> Download Kubeconfig
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-tasks"></i> Instructions</strong>
+            </div>
+            <div class="card-body">
+                {% if result.instructions %}
+                <ul class="small">
+                    {% for instruction in result.instructions %}
+                    <li>{{ instruction }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <strong><i class="fas fa-link"></i> Quick Actions</strong>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('cluster.detail', cluster_id=result.cluster_id) }}" class="btn btn-primary">
+                        <i class="fas fa-eye"></i> View Cluster
+                    </a>
+                    <a href="{{ url_for('cluster.list_clusters') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list"></i> All Clusters
+                    </a>
+                    <a href="{{ url_for('deployment.k3s_deploy_form') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-plus"></i> Deploy Another
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function downloadKubeconfig() {
+    const kubeconfig = {{ result.kubeconfig | tojson }};
+    const blob = new Blob([kubeconfig], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '{{ result.cluster_name }}-kubeconfig.yaml';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+
+{% endblock %}
