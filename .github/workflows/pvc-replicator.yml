@@ -1,0 +1,177 @@
+name: PVC Replicator Operator CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'operators/pvc-replicator/**'
+      - '.github/workflows/pvc-replicator.yml'
+    tags:
+      - 'pvc-replicator-v*.*.*'
+  pull_request:
+    paths:
+      - 'operators/pvc-replicator/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/pvc-replicator
+
+jobs:
+  test:
+    name: Test Operator
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install kopf==1.37.0 kubernetes==29.0.0 pyyaml==6.0.1 pytest
+
+      - name: Validate operator code
+        run: |
+          python -m py_compile operators/pvc-replicator/operator.py
+
+      - name: Validate CRD YAML
+        run: |
+          python -c "import yaml; yaml.safe_load(open('operators/pvc-replicator/crd.yaml'))"
+
+      - name: Validate deployment YAML
+        run: |
+          python -c "import yaml; yaml.safe_load_all(open('operators/pvc-replicator/deployment.yaml'))"
+
+  build:
+    name: Build Container Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: operators/pvc-replicator
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/pvc-replicator-v')
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/pvc-replicator-v}" >> $GITHUB_OUTPUT
+
+      - name: Create release notes
+        run: |
+          cat > release-notes.md << 'EOF'
+          ## PVC Replicator Operator ${{ steps.version.outputs.VERSION }}
+
+          ### Container Images
+
+          ```bash
+          docker pull ghcr.io/${{ github.repository_owner }}/pvc-replicator:${{ steps.version.outputs.VERSION }}
+          docker pull ghcr.io/${{ github.repository_owner }}/pvc-replicator:latest
+          ```
+
+          ### Installation
+
+          ```bash
+          kubectl apply -f https://raw.githubusercontent.com/${{ github.repository }}/main/operators/pvc-replicator/crd.yaml
+          kubectl apply -f https://raw.githubusercontent.com/${{ github.repository }}/main/operators/pvc-replicator/deployment.yaml
+          ```
+
+          ### What's New
+
+          - Cross-cluster PVC replication using rsync
+          - CronJob-based scheduled syncing
+          - Multi-cluster support via kubeconfig secrets
+          - Status tracking and monitoring
+
+          ### Documentation
+
+          See [README.md](https://github.com/${{ github.repository }}/blob/main/operators/pvc-replicator/README.md) for full documentation.
+
+          ### Note
+
+          For Rook-Ceph deployments, consider using the [Ceph Mirror Operator](https://github.com/${{ github.repository }}/tree/main/operators/ceph-mirror-operator) which uses native Ceph RBD mirroring for better performance.
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: PVC Replicator Operator ${{ steps.version.outputs.VERSION }}
+          body_path: release-notes.md
+          files: |
+            operators/pvc-replicator/crd.yaml
+            operators/pvc-replicator/deployment.yaml
+          draft: false
+          prerelease: false
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
