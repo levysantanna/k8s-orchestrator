@@ -37,47 +37,161 @@
                     </div>
 
                     <hr>
-                    <h5>Authentication Method</h5>
+                    <h5>Connection Method</h5>
 
-                    <div class="mb-3">
-                        <label for="kubeconfig_file" class="form-label">
-                            <i class="fas fa-file"></i> Kubeconfig File
-                        </label>
-                        <input type="file" class="form-control" id="kubeconfig_file" name="kubeconfig_file" accept=".yaml,.yml,.config">
-                        <small class="form-text text-muted">Upload your kubeconfig file for authentication</small>
-                    </div>
+                    <ul class="nav nav-tabs mb-3" id="connectionTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="kubeconfig-tab" data-bs-toggle="tab" data-bs-target="#kubeconfig-pane" type="button">
+                                <i class="fas fa-file"></i> Kubeconfig Upload
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ssh-tab" data-bs-toggle="tab" data-bs-target="#ssh-pane" type="button">
+                                <i class="fas fa-terminal"></i> SSH Connection
+                            </button>
+                        </li>
+                    </ul>
 
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="use_ssh" name="use_ssh"
-                               onchange="document.getElementById('ssh-config').style.display = this.checked ? 'block' : 'none';">
-                        <label class="form-check-label" for="use_ssh">
-                            Use SSH for metrics collection (optional)
-                        </label>
-                    </div>
+                    <div class="tab-content" id="connectionTabContent">
+                        <!-- Kubeconfig Upload Tab -->
+                        <div class="tab-pane fade show active" id="kubeconfig-pane" role="tabpanel">
+                            <div class="mb-3">
+                                <label for="kubeconfig_file" class="form-label">
+                                    <i class="fas fa-file"></i> Kubeconfig File <span class="text-danger">*</span>
+                                </label>
+                                <input type="file" class="form-control" id="kubeconfig_file" name="kubeconfig_file" accept=".yaml,.yml,.config">
+                                <small class="form-text text-muted">Upload your kubeconfig file for authentication</small>
+                            </div>
 
-                    <div id="ssh-config" style="display: none;">
-                        <div class="card bg-light mb-3">
-                            <div class="card-body">
-                                <h6>SSH Configuration</h6>
-                                <div class="mb-2">
-                                    <label for="ssh_host" class="form-label">SSH Host</label>
-                                    <input type="text" class="form-control" id="ssh_host" name="ssh_host">
-                                </div>
-                                <div class="mb-2">
-                                    <label for="ssh_port" class="form-label">SSH Port</label>
-                                    <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
-                                </div>
-                                <div class="mb-2">
-                                    <label for="ssh_username" class="form-label">SSH Username</label>
-                                    <input type="text" class="form-control" id="ssh_username" name="ssh_username">
-                                </div>
-                                <div class="mb-2">
-                                    <label for="ssh_password" class="form-label">SSH Password</label>
-                                    <input type="password" class="form-control" id="ssh_password" name="ssh_password">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="use_ssh_metrics" name="use_ssh_metrics"
+                                       onchange="document.getElementById('ssh-metrics-config').style.display = this.checked ? 'block' : 'none';">
+                                <label class="form-check-label" for="use_ssh_metrics">
+                                    Also enable SSH for metrics collection (optional)
+                                </label>
+                            </div>
+
+                            <div id="ssh-metrics-config" style="display: none;">
+                                <div class="card bg-light mb-3">
+                                    <div class="card-body">
+                                        <h6>SSH Metrics Configuration</h6>
+                                        <div class="mb-2">
+                                            <label for="metrics_ssh_host" class="form-label">SSH Host</label>
+                                            <input type="text" class="form-control" id="metrics_ssh_host" name="metrics_ssh_host">
+                                        </div>
+                                        <div class="mb-2">
+                                            <label for="metrics_ssh_port" class="form-label">SSH Port</label>
+                                            <input type="number" class="form-control" id="metrics_ssh_port" name="metrics_ssh_port" value="22">
+                                        </div>
+                                        <div class="mb-2">
+                                            <label for="metrics_ssh_username" class="form-label">SSH Username</label>
+                                            <input type="text" class="form-control" id="metrics_ssh_username" name="metrics_ssh_username">
+                                        </div>
+                                        <div class="mb-2">
+                                            <label for="metrics_ssh_password" class="form-label">SSH Password</label>
+                                            <input type="password" class="form-control" id="metrics_ssh_password" name="metrics_ssh_password">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+
+                        <!-- SSH Connection Tab -->
+                        <div class="tab-pane fade" id="ssh-pane" role="tabpanel">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                Connect to an existing Kubernetes cluster using SSH. The kubeconfig will be automatically retrieved.
+                            </div>
+
+                            <input type="hidden" id="ssh_connection_mode" name="ssh_connection_mode" value="false">
+
+                            <div class="mb-3">
+                                <label for="ssh_host" class="form-label">SSH Host <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="ssh_host" name="ssh_host" placeholder="192.168.1.10">
+                                <small class="form-text text-muted">IP address or hostname of the Kubernetes master node</small>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="ssh_port" class="form-label">SSH Port</label>
+                                    <input type="number" class="form-control" id="ssh_port" name="ssh_port" value="22">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="ssh_username" class="form-label">SSH Username <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="ssh_username" name="ssh_username" placeholder="root">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Authentication Method</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ssh_auth_method" id="ssh_auth_key" value="key" checked
+                                           onchange="toggleSSHAuth()">
+                                    <label class="form-check-label" for="ssh_auth_key">
+                                        Private Key (Recommended)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="ssh_auth_method" id="ssh_auth_password" value="password"
+                                           onchange="toggleSSHAuth()">
+                                    <label class="form-check-label" for="ssh_auth_password">
+                                        Password
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div id="ssh-key-section">
+                                <div class="mb-3">
+                                    <label for="ssh_private_key_file" class="form-label">Private Key File</label>
+                                    <input type="file" class="form-control" id="ssh_private_key_file" name="ssh_private_key_file">
+                                    <small class="form-text text-muted">Upload your SSH private key (e.g., id_rsa, id_ed25519)</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="ssh_private_key_text" class="form-label">Or Paste Private Key</label>
+                                    <textarea class="form-control font-monospace" id="ssh_private_key_text" name="ssh_private_key_text" rows="6"
+                                              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"></textarea>
+                                    <small class="form-text text-muted">Paste the contents of your private key file</small>
+                                </div>
+                            </div>
+
+                            <div id="ssh-password-section" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="ssh_password" class="form-label">SSH Password <span class="text-danger">*</span></label>
+                                    <input type="password" class="form-control" id="ssh_password" name="ssh_password">
+                                    <small class="form-text text-muted">SSH password for authentication</small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="kubeconfig_path" class="form-label">Kubeconfig Path on Server</label>
+                                <input type="text" class="form-control" id="kubeconfig_path" name="kubeconfig_path"
+                                       value="/etc/rancher/k3s/k3s.yaml">
+                                <small class="form-text text-muted">Path to kubeconfig on the remote server (k3s default: /etc/rancher/k3s/k3s.yaml)</small>
+                            </div>
+                        </div>
                     </div>
+
+                    <script>
+                        // Toggle SSH authentication method
+                        function toggleSSHAuth() {
+                            const keySection = document.getElementById('ssh-key-section');
+                            const passwordSection = document.getElementById('ssh-password-section');
+                            const useKey = document.getElementById('ssh_auth_key').checked;
+
+                            keySection.style.display = useKey ? 'block' : 'none';
+                            passwordSection.style.display = useKey ? 'none' : 'block';
+                        }
+
+                        // Update hidden field when SSH tab is active
+                        document.getElementById('ssh-tab').addEventListener('click', function() {
+                            document.getElementById('ssh_connection_mode').value = 'true';
+                        });
+
+                        document.getElementById('kubeconfig-tab').addEventListener('click', function() {
+                            document.getElementById('ssh_connection_mode').value = 'false';
+                        });
+                    </script>
 
                     <hr>
 
@@ -100,18 +214,47 @@
                 <strong><i class="fas fa-info-circle"></i> Help</strong>
             </div>
             <div class="card-body">
-                <h6>Authentication Methods</h6>
-                <p class="small">You can authenticate using:</p>
+                <h6>Connection Methods</h6>
+                <p class="small">Choose how to connect to your cluster:</p>
+
+                <div class="mb-3">
+                    <strong class="text-primary">1. Kubeconfig Upload</strong>
+                    <p class="small mb-1">Upload an existing kubeconfig file</p>
+                    <ul class="small">
+                        <li>Standard Kubernetes authentication</li>
+                        <li>Works with any cluster</li>
+                        <li>Optionally add SSH for metrics</li>
+                    </ul>
+                </div>
+
+                <div class="mb-3">
+                    <strong class="text-primary">2. SSH Connection</strong>
+                    <p class="small mb-1">Connect using SSH credentials only</p>
+                    <ul class="small">
+                        <li>Auto-retrieves kubeconfig via SSH</li>
+                        <li>No manual file download needed</li>
+                        <li>Requires SSH access to master node</li>
+                        <li>Supports private key or password auth</li>
+                    </ul>
+                </div>
+
+                <hr>
+
+                <h6>SSH Requirements</h6>
+                <p class="small">Your SSH user must have:</p>
                 <ul class="small">
-                    <li><strong>Kubeconfig</strong>: Upload your kubeconfig file</li>
-                    <li><strong>SSH</strong>: Optional for metrics collection</li>
+                    <li>Read access to kubeconfig</li>
+                    <li>Sudo privileges (for k3s: root or in k3s group)</li>
                 </ul>
 
                 <hr>
 
-                <h6>Getting Kubeconfig</h6>
-                <p class="small">On your cluster master node:</p>
-                <pre class="bg-dark text-light p-2 small"><code>cat ~/.kube/config</code></pre>
+                <h6>Quick Reference</h6>
+                <p class="small"><strong>k3s default paths:</strong></p>
+                <pre class="bg-dark text-light p-2 small"><code>/etc/rancher/k3s/k3s.yaml</code></pre>
+
+                <p class="small"><strong>Standard kubeconfig:</strong></p>
+                <pre class="bg-dark text-light p-2 small"><code>~/.kube/config</code></pre>
             </div>
         </div>
     </div>

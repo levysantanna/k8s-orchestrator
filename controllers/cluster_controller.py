@@ -2,7 +2,9 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from functions.decorators import require_login, require_admin
 from services.cluster_service import ClusterService
 from services.k8s_client_service import K8sClientService
+from services.k3s_deployment_service import K3sDeploymentService
 import base64
+import asyncio
 
 cluster_bp = Blueprint('cluster', __name__, url_prefix='/clusters')
 
@@ -25,31 +27,124 @@ def add_cluster():
         try:
             name = request.form.get('name')
             description = request.form.get('description')
-            api_server_url = request.form.get('api_server_url')
+            ssh_connection_mode = request.form.get('ssh_connection_mode') == 'true'
 
-            if not name or not api_server_url:
-                flash('Cluster name and API server URL are required', 'danger')
+            if not name:
+                flash('Cluster name is required', 'danger')
                 return render_template('clusters/add.html')
 
-            # Handle kubeconfig file upload
-            kubeconfig_content = None
-            if 'kubeconfig_file' in request.files:
-                file = request.files['kubeconfig_file']
-                if file.filename:
-                    kubeconfig_data = file.read()
-                    kubeconfig_content = base64.b64encode(kubeconfig_data).decode('utf-8')
+            # Mode 1: SSH Connection - Retrieve kubeconfig via SSH
+            if ssh_connection_mode:
+                ssh_host = request.form.get('ssh_host')
+                ssh_port = int(request.form.get('ssh_port', 22))
+                ssh_username = request.form.get('ssh_username')
+                ssh_password = request.form.get('ssh_password')
+                kubeconfig_path = request.form.get('kubeconfig_path', '/etc/rancher/k3s/k3s.yaml')
 
-            # Handle SSH configuration
-            ssh_config = None
-            if request.form.get('use_ssh') == 'on':
+                # Handle SSH authentication
+                ssh_auth_method = request.form.get('ssh_auth_method', 'key')
+                ssh_key_content = None
+
+                if ssh_auth_method == 'key':
+                    # Try file upload first
+                    if 'ssh_private_key_file' in request.files:
+                        key_file = request.files['ssh_private_key_file']
+                        if key_file.filename:
+                            ssh_key_content = key_file.read().decode('utf-8')
+
+                    # Fall back to pasted key
+                    if not ssh_key_content:
+                        ssh_key_content = request.form.get('ssh_private_key_text')
+
+                    if not ssh_key_content:
+                        flash('Private key is required for key-based authentication', 'danger')
+                        return render_template('clusters/add.html')
+
+                elif ssh_auth_method == 'password':
+                    if not ssh_password:
+                        flash('Password is required for password-based authentication', 'danger')
+                        return render_template('clusters/add.html')
+
+                if not all([ssh_host, ssh_username]):
+                    flash('SSH host and username are required', 'danger')
+                    return render_template('clusters/add.html')
+
+                # Connect via SSH and retrieve kubeconfig
+                result = asyncio.run(
+                    K3sDeploymentService._connect_ssh(
+                        ssh_host, ssh_port, ssh_username,
+                        ssh_key_content if ssh_auth_method == 'key' else None,
+                        ssh_password
+                    )
+                )
+
+                if not result['success']:
+                    flash(f"SSH connection failed: {result['error']}", 'danger')
+                    return render_template('clusters/add.html')
+
+                conn = result['connection']
+
+                # Retrieve kubeconfig from the server
+                kubeconfig_result = asyncio.run(
+                    K3sDeploymentService._get_kubeconfig(conn, ssh_host, kubeconfig_path)
+                )
+
+                asyncio.run(conn.close())
+
+                if not kubeconfig_result['success']:
+                    flash(f"Failed to retrieve kubeconfig: {kubeconfig_result['error']}", 'danger')
+                    return render_template('clusters/add.html')
+
+                # Encode kubeconfig
+                kubeconfig_content = base64.b64encode(
+                    kubeconfig_result['kubeconfig'].encode('utf-8')
+                ).decode('utf-8')
+
+                # Determine API server URL (try to extract from kubeconfig or use default)
+                api_server_url = f"https://{ssh_host}:6443"
+                if not description:
+                    description = f"Connected via SSH from {ssh_host}"
+
+                # Store SSH config for metrics
                 ssh_config = {
-                    'host': request.form.get('ssh_host'),
-                    'port': int(request.form.get('ssh_port', 22)),
-                    'username': request.form.get('ssh_username'),
-                    'password': request.form.get('ssh_password'),
+                    'host': ssh_host,
+                    'port': ssh_port,
+                    'username': ssh_username,
+                    'key_content': ssh_key_content if ssh_auth_method == 'key' else None,
+                    'password': ssh_password if ssh_auth_method == 'password' else None
                 }
 
-            # Add cluster
+            # Mode 2: Kubeconfig Upload - Traditional method
+            else:
+                api_server_url = request.form.get('api_server_url')
+
+                if not api_server_url:
+                    flash('API server URL is required', 'danger')
+                    return render_template('clusters/add.html')
+
+                # Handle kubeconfig file upload
+                kubeconfig_content = None
+                if 'kubeconfig_file' in request.files:
+                    file = request.files['kubeconfig_file']
+                    if file.filename:
+                        kubeconfig_data = file.read()
+                        kubeconfig_content = base64.b64encode(kubeconfig_data).decode('utf-8')
+
+                if not kubeconfig_content:
+                    flash('Kubeconfig file is required', 'danger')
+                    return render_template('clusters/add.html')
+
+                # Handle optional SSH configuration for metrics
+                ssh_config = None
+                if request.form.get('use_ssh_metrics') == 'on':
+                    ssh_config = {
+                        'host': request.form.get('metrics_ssh_host'),
+                        'port': int(request.form.get('metrics_ssh_port', 22)),
+                        'username': request.form.get('metrics_ssh_username'),
+                        'password': request.form.get('metrics_ssh_password'),
+                    }
+
+            # Add cluster to database
             cluster = ClusterService.add_cluster(
                 name=name,
                 api_server_url=api_server_url,

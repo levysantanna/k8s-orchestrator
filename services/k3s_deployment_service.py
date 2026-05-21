@@ -372,7 +372,8 @@ class K3sDeploymentService:
     @staticmethod
     async def _get_kubeconfig(
         conn: asyncssh.SSHClientConnection,
-        server_host: str
+        server_host: str,
+        kubeconfig_path: str = '/etc/rancher/k3s/k3s.yaml'
     ) -> Dict:
         """
         Retrieve kubeconfig from remote server
@@ -380,18 +381,19 @@ class K3sDeploymentService:
         Args:
             conn: SSH connection
             server_host: Server hostname/IP for API server URL
+            kubeconfig_path: Path to kubeconfig file on server
 
         Returns:
             dict: Kubeconfig content
         """
         try:
             # Get kubeconfig from server
-            result = await conn.run('sudo cat /etc/rancher/k3s/k3s.yaml')
+            result = await conn.run(f'sudo cat {kubeconfig_path}')
 
             if result.exit_status != 0:
                 return {
                     'success': False,
-                    'error': 'Failed to retrieve kubeconfig'
+                    'error': f'Failed to retrieve kubeconfig from {kubeconfig_path}'
                 }
 
             kubeconfig = result.stdout
