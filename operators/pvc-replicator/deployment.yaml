@@ -1,0 +1,77 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pvc-replicator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pvc-replicator
+  namespace: pvc-replicator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pvc-replicator
+rules:
+- apiGroups: ["pvcreplicator.k8s-orchestrator.io"]
+  resources: ["pvcreplications"]
+  verbs: ["*"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods", "persistentvolumeclaims", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pvc-replicator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pvc-replicator
+subjects:
+- kind: ServiceAccount
+  name: pvc-replicator
+  namespace: pvc-replicator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pvc-replicator
+  namespace: pvc-replicator
+  labels:
+    app: pvc-replicator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pvc-replicator
+  template:
+    metadata:
+      labels:
+        app: pvc-replicator
+    spec:
+      serviceAccountName: pvc-replicator
+      containers:
+      - name: operator
+        image: ghcr.io/levysantanna/pvc-replicator:latest
+        imagePullPolicy: Always
+        env:
+        - name: OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
