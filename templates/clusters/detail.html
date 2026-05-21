@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cluster.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2>
+                    <i class="fas fa-server"></i> {{ cluster.name }}
+                    <span class="badge bg-{{ cluster.status.value | status_color }} ms-2">{{ cluster.status.value }}</span>
+                </h2>
+                {% if cluster.description %}
+                <p class="text-muted">{{ cluster.description }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <a href="{{ url_for('cluster.list_clusters') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Clusters
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cluster Info -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-info-circle"></i> Cluster Information</strong>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th width="40%">API Server:</th>
+                        <td><code>{{ cluster.api_server_url }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>Kubernetes Version:</th>
+                        <td>{{ cluster.kubernetes_version or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Node Count:</th>
+                        <td>{{ cluster.node_count }}</td>
+                    </tr>
+                    <tr>
+                        <th>Health Status:</th>
+                        <td>
+                            {% if cluster.health_status %}
+                            <span class="badge bg-{{ 'success' if cluster.health_status == 'healthy' else 'warning' }}">
+                                {{ cluster.health_status }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Last Seen:</th>
+                        <td>
+                            {% if cluster.last_seen %}
+                            {{ cluster.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                            <span class="text-muted">Never</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+
+                {% if current_user.has_role('admin') %}
+                <div class="d-grid gap-2">
+                    <form method="POST" action="{{ url_for('cluster.test_connection', cluster_id=cluster.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-plug"></i> Test Connection
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('cluster.discover_nodes', cluster_id=cluster.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-outline-info w-100">
+                            <i class="fas fa-sync"></i> Discover Nodes
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-network-wired"></i> Cluster Nodes</strong>
+            </div>
+            <div class="card-body">
+                {% if cluster.nodes %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Node</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for node in cluster.nodes %}
+                            <tr>
+                                <td>
+                                    <strong>{{ node.name }}</strong>
+                                    {% if node.ip_address %}
+                                    <br><small class="text-muted">{{ node.ip_address }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if node.role == 'master' else 'secondary' }}">
+                                        {{ node.role }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if node.status == 'Ready' else 'danger' }}">
+                                        {{ node.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">
+                    <i class="fas fa-info-circle"></i> No nodes discovered yet.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Namespaces -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-folder"></i> Namespaces</strong>
+            </div>
+            <div class="card-body">
+                {% if namespaces %}
+                <div class="d-flex flex-wrap gap-2">
+                    {% for ns in namespaces %}
+                    <span class="badge bg-secondary">{{ ns }}</span>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No namespaces found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pods -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-cube"></i> Pods</strong>
+            </div>
+            <div class="card-body">
+                {% if pods %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Namespace</th>
+                                <th>Status</th>
+                                <th>Node</th>
+                                <th>IP</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pod in pods[:20] %}
+                            <tr>
+                                <td><code>{{ pod.name }}</code></td>
+                                <td>{{ pod.namespace }}</td>
+                                <td>
+                                    <span class="badge bg-{{ pod.status | status_color }}">{{ pod.status }}</span>
+                                </td>
+                                <td>{{ pod.node }}</td>
+                                <td>{{ pod.ip or 'N/A' }}</td>
+                                <td>
+                                    <a href="{{ url_for('cluster.pod_logs', cluster_id=cluster.id, namespace=pod.namespace, pod_name=pod.name) }}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-file-alt"></i> Logs
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% if pods|length > 20 %}
+                    <p class="text-muted small">Showing first 20 of {{ pods|length }} pods</p>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No pods found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deployments -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="fas fa-layer-group"></i> Deployments</strong>
+            </div>
+            <div class="card-body">
+                {% if deployments %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Namespace</th>
+                                <th>Replicas</th>
+                                <th>Ready</th>
+                                <th>Available</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for deploy in deployments %}
+                            <tr>
+                                <td><strong>{{ deploy.name }}</strong></td>
+                                <td>{{ deploy.namespace }}</td>
+                                <td>{{ deploy.replicas }}</td>
+                                <td>{{ deploy.ready_replicas }}</td>
+                                <td>{{ deploy.available_replicas }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No deployments found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

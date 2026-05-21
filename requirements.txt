@@ -1,0 +1,40 @@
+# Flask Core
+Flask==3.0.2
+Flask-Login==0.6.3
+Flask-SQLAlchemy==3.1.1
+Flask-WTF==1.2.1
+Bootstrap-Flask==2.3.3
+
+# Database
+SQLAlchemy>=2.0.36
+
+# Environment
+python-dotenv==1.0.1
+
+# Caching
+redis==5.0.1
+
+# Kubernetes
+kubernetes>=29.0.0
+
+# SSH
+asyncssh>=2.14.0
+
+# Background Jobs
+APScheduler>=3.10.0
+
+# Security
+bcrypt==4.1.2
+cryptography>=41.0.0
+
+# HTTP
+requests>=2.31.0
+
+# WSGI Server
+gunicorn==21.2.0
+
+# Date/Time
+python-dateutil>=2.8.2
+
+# YAML parsing
+PyYAML>=6.0.1

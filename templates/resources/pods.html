@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Pods - {{ cluster.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="fas fa-cube"></i> Pods - {{ cluster.name }}</h2>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Namespace</th>
+                                <th>Status</th>
+                                <th>Node</th>
+                                <th>IP</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pod in pods %}
+                            <tr>
+                                <td><code>{{ pod.name }}</code></td>
+                                <td>{{ pod.namespace }}</td>
+                                <td>
+                                    <span class="badge bg-{{ pod.status | status_color }}">{{ pod.status }}</span>
+                                </td>
+                                <td>{{ pod.node }}</td>
+                                <td>{{ pod.ip or 'N/A' }}</td>
+                                <td>
+                                    <a href="{{ url_for('cluster.pod_logs', cluster_id=cluster.id, namespace=pod.namespace, pod_name=pod.name) }}"
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-file-alt"></i> Logs
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
