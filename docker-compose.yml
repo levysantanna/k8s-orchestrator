@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # K8s Orchestrator Web Application
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: k8s-orchestrator:latest
+    container_name: k8s-orchestrator
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DATABASE_URL=sqlite:///data/orchestrator.db
+      - REDIS_URL=redis://redis:6379/0
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+    volumes:
+      # Persist database
+      - orchestrator-data:/app/data
+      # Persist logs
+      - orchestrator-logs:/app/logs
+      # Mount kubeconfig (optional - for local k8s access)
+      - ${HOME}/.kube:/home/appuser/.kube:ro
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - orchestrator-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: k8s-orchestrator-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - orchestrator-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: redis-server --appendonly yes
+
+volumes:
+  orchestrator-data:
+    driver: local
+  orchestrator-logs:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  orchestrator-net:
+    driver: bridge

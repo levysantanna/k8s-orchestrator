@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (will be mounted as volume)
+logs/*.log
+*.log
+
+# Database (will be mounted as volume)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Documentation
+*.md
+!README.md
+
+# Development files
+docker-compose.override.yml
+.env.local
