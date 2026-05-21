@@ -1,0 +1,119 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: cephmirrors.storage.k8s-orchestrator.io
+spec:
+  group: storage.k8s-orchestrator.io
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - sourcePool
+                - targetCluster
+              properties:
+                sourcePool:
+                  type: string
+                  description: "Ceph RBD pool to mirror (e.g., replicapool)"
+                targetCluster:
+                  type: object
+                  description: "Target Rook-Ceph cluster configuration"
+                  required:
+                    - kubeconfig
+                    - namespace
+                  properties:
+                    kubeconfig:
+                      type: string
+                      description: "Secret name containing target cluster kubeconfig"
+                    namespace:
+                      type: string
+                      description: "Rook-Ceph namespace in target cluster"
+                      default: rook-ceph
+                mirrorMode:
+                  type: string
+                  description: "Mirroring mode: image (per-image) or pool (entire pool)"
+                  enum: ["image", "pool"]
+                  default: "pool"
+                direction:
+                  type: string
+                  description: "Replication direction: one-way or two-way"
+                  enum: ["one-way", "two-way"]
+                  default: "one-way"
+                snapshotSchedule:
+                  type: string
+                  description: "Snapshot schedule for snapshot-based mirroring (cron format)"
+                  pattern: '^(\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*\/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\*|([0-9]|1[0-9]|2[0-3])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\*\/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\*|([1-9]|1[0-2])|\*\/([1-9]|1[0-2])) (\*|([0-6])|\*\/([0-6]))$'
+                  default: "0 */6 * * *"
+                enabled:
+                  type: boolean
+                  description: "Enable/disable mirroring"
+                  default: true
+                imagePattern:
+                  type: string
+                  description: "Regex pattern to match RBD images (for image mode)"
+            status:
+              type: object
+              properties:
+                state:
+                  type: string
+                  enum: ["Idle", "Syncing", "Healthy", "Warning", "Error"]
+                mirroringEnabled:
+                  type: boolean
+                peerBootstrapToken:
+                  type: string
+                  description: "Bootstrap token for peer cluster"
+                lastSyncTime:
+                  type: string
+                  format: date-time
+                imageStatus:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      imageName:
+                        type: string
+                      state:
+                        type: string
+                      description:
+                        type: string
+                      lastUpdate:
+                        type: string
+                        format: date-time
+                error:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Source Pool
+          type: string
+          jsonPath: .spec.sourcePool
+        - name: Mode
+          type: string
+          jsonPath: .spec.mirrorMode
+        - name: Direction
+          type: string
+          jsonPath: .spec.direction
+        - name: State
+          type: string
+          jsonPath: .status.state
+        - name: Last Sync
+          type: string
+          jsonPath: .status.lastSyncTime
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  scope: Namespaced
+  names:
+    plural: cephmirrors
+    singular: cephmirror
+    kind: CephMirror
+    shortNames:
+      - cm
+      - cephmir

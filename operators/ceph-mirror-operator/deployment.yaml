@@ -1,0 +1,80 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ceph-mirror-operator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ceph-mirror-operator
+  namespace: ceph-mirror-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ceph-mirror-operator
+rules:
+- apiGroups: ["storage.k8s-orchestrator.io"]
+  resources: ["cephmirrors"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods", "pods/exec"]
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+- apiGroups: ["ceph.rook.io"]
+  resources: ["cephblockpools", "cephclusters"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ceph-mirror-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ceph-mirror-operator
+subjects:
+- kind: ServiceAccount
+  name: ceph-mirror-operator
+  namespace: ceph-mirror-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ceph-mirror-operator
+  namespace: ceph-mirror-operator
+  labels:
+    app: ceph-mirror-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ceph-mirror-operator
+  template:
+    metadata:
+      labels:
+        app: ceph-mirror-operator
+    spec:
+      serviceAccountName: ceph-mirror-operator
+      containers:
+      - name: operator
+        image: ghcr.io/levysantanna/ceph-mirror-operator:latest
+        imagePullPolicy: Always
+        env:
+        - name: OPERATOR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
