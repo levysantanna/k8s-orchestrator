@@ -144,6 +144,16 @@
                             <i class="fas fa-rocket"></i> Deploy New k3s
                         </a>
                     </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-network-wired"></i> Ingress
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('ingress.list_all') }}">
+                                <i class="fas fa-list"></i> View All Templates
+                            </a></li>
+                        </ul>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#">
                             <i class="fas fa-robot"></i> MCP Agents

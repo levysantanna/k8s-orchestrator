@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Ingress Templates{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-network-wired"></i> Ingress Templates</h2>
+            <p class="text-muted">Manage ingress configurations for services across clusters</p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% if current_user.has_role('admin') %}
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                    <i class="fas fa-plus"></i> Create Template
+                </button>
+                <ul class="dropdown-menu">
+                    {% if cluster %}
+                        <li><a class="dropdown-item" href="{{ url_for('ingress.create', cluster_id=cluster.id) }}">
+                            <i class="fas fa-cube"></i> For {{ cluster.name }}
+                        </a></li>
+                    {% else %}
+                        {% for c in clusters %}
+                        <li><a class="dropdown-item" href="{{ url_for('ingress.create', cluster_id=c.id) }}">
+                            <i class="fas fa-cube"></i> {{ c.name }}
+                        </a></li>
+                        {% endfor %}
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if templates %}
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Host</th>
+                            <th>Backend</th>
+                            <th>TLS</th>
+                            <th>Cluster</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for template in templates %}
+                        {% set spec = template.spec %}
+                        {% set meta = template.metadata %}
+                        {% set status = template.get('status', {}) %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('ingress.detail', cluster_id=template.cluster.id, namespace=meta.namespace, name=meta.name) }}">
+                                    <strong>{{ meta.name }}</strong>
+                                </a>
+                                <br>
+                                <small class="text-muted">{{ meta.namespace }}</small>
+                            </td>
+                            <td>
+                                <code>{{ spec.host }}</code>
+                            </td>
+                            <td>
+                                {% if spec.backend.type == 'external' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-server"></i> External: {{ spec.backend.externalIP }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-primary">
+                                        <i class="fas fa-cube"></i> Service: {{ spec.backend.serviceName }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if spec.tls.enabled %}
+                                    {% if spec.tls.get('useWildcard') %}
+                                        <span class="badge bg-success"><i class="fas fa-lock"></i> Wildcard</span>
+                                    {% else %}
+                                        <span class="badge bg-success"><i class="fas fa-lock"></i> Auto TLS</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary"><i class="fas fa-unlock"></i> HTTP</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-dark">{{ template.cluster.name }}</span>
+                            </td>
+                            <td>
+                                {% if spec.get('enabled', True) %}
+                                    <span class="badge bg-success">Enabled</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Disabled</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('ingress.detail', cluster_id=template.cluster.id, namespace=meta.namespace, name=meta.name) }}"
+                                   class="btn btn-sm btn-info" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if current_user.has_role('admin') %}
+                                <a href="{{ url_for('ingress.export_yaml', cluster_id=template.cluster.id, namespace=meta.namespace, name=meta.name) }}"
+                                   class="btn btn-sm btn-secondary" title="Export YAML" target="_blank">
+                                    <i class="fas fa-file-code"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('ingress.delete', cluster_id=template.cluster.id, namespace=meta.namespace, name=meta.name) }}"
+                                      style="display:inline;" onsubmit="return confirm('Delete this template? This will remove the ingress.')">
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle"></i> No ingress templates found.
+        {% if current_user.has_role('admin') %}
+            <a href="{{ url_for('ingress.create', cluster_id=clusters[0].id if clusters else 1) }}" class="alert-link">Create your first template</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

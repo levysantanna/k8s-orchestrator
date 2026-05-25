@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}{{ template.metadata.name }} - Ingress Template{% endblock %}
+
+{% block content %}
+{% set spec = template.spec %}
+{% set meta = template.metadata %}
+{% set status = template.get('status', {}) %}
+
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-network-wired"></i> {{ meta.name }}</h2>
+            <p class="text-muted">
+                Cluster: <strong>{{ cluster.name }}</strong> | Namespace: <code>{{ meta.namespace }}</code>
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% if current_user.has_role('admin') %}
+            <div class="btn-group">
+                <a href="{{ url_for('ingress.export_yaml', cluster_id=cluster.id, namespace=meta.namespace, name=meta.name) }}"
+                   class="btn btn-secondary" target="_blank">
+                    <i class="fas fa-file-code"></i> Export YAML
+                </a>
+                <form method="POST" action="{{ url_for('ingress.delete', cluster_id=cluster.id, namespace=meta.namespace, name=meta.name) }}"
+                      style="display:inline;" onsubmit="return confirm('Delete this template and ingress?')">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <!-- Status Card -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Template Status:</strong>
+                            {% if spec.get('enabled', True) %}
+                                <span class="badge bg-success">Enabled</span>
+                            {% else %}
+                                <span class="badge bg-warning">Disabled</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            {% if current_user.has_role('admin') %}
+                            <form method="POST" action="{{ url_for('ingress.toggle', cluster_id=cluster.id, namespace=meta.namespace, name=meta.name) }}">
+                                {% if spec.get('enabled', True) %}
+                                    <input type="hidden" name="enabled" value="false">
+                                    <button type="submit" class="btn btn-sm btn-warning">
+                                        <i class="fas fa-pause"></i> Disable
+                                    </button>
+                                {% else %}
+                                    <input type="hidden" name="enabled" value="true">
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="fas fa-play"></i> Enable
+                                    </button>
+                                {% endif %}
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if status.get('conditions') %}
+                    <hr>
+                    <h6>Conditions:</h6>
+                    {% for condition in status.conditions %}
+                    <div class="alert alert-{% if condition.status == 'True' %}success{% elif condition.status == 'False' %}danger{% else %}warning{% endif %} py-2">
+                        <strong>{{ condition.type }}:</strong> {{ condition.message }}
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Configuration Card -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-cog"></i> Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th width="30%">Host:</th>
+                            <td><code>{{ spec.host }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Backend Type:</th>
+                            <td>
+                                {% if spec.backend.type == 'external' %}
+                                    <span class="badge bg-info"><i class="fas fa-server"></i> External</span>
+                                {% else %}
+                                    <span class="badge bg-primary"><i class="fas fa-cube"></i> Service</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Backend Details:</th>
+                            <td>
+                                {% if spec.backend.type == 'external' %}
+                                    IP: <code>{{ spec.backend.externalIP }}</code><br>
+                                    Ports: {{ spec.backend.externalPort }}
+                                    {% if spec.backend.get('externalHttpsPort') %}, {{ spec.backend.externalHttpsPort }} (HTTPS){% endif %}
+                                {% else %}
+                                    Service: <code>{{ spec.backend.serviceName }}</code><br>
+                                    Port: {{ spec.backend.servicePort }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>TLS:</th>
+                            <td>
+                                {% if spec.tls.enabled %}
+                                    <span class="badge bg-success"><i class="fas fa-lock"></i> Enabled</span><br>
+                                    {% if spec.tls.get('useWildcard') %}
+                                        Using wildcard: <code>{{ spec.tls.get('wildcardSecretName', 'wildcard-comunatec-org-tls') }}</code>
+                                    {% else %}
+                                        ClusterIssuer: <code>{{ spec.tls.get('clusterIssuer', 'letsencrypt-prod') }}</code>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary"><i class="fas fa-unlock"></i> Disabled (HTTP only)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Ingress Class:</th>
+                            <td><code>{{ spec.get('ingressClassName', 'traefik') }}</code></td>
+                        </tr>
+                        {% if spec.get('annotations') %}
+                        <tr>
+                            <th>Annotations:</th>
+                            <td>
+                                {% for key, value in spec.annotations.items() %}
+                                <code>{{ key }}: {{ value }}</code><br>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+
+            <!-- Associated Ingress -->
+            {% if ingress %}
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-cloud"></i> Created Ingress</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th width="30%">Ingress Name:</th>
+                            <td><code>{{ ingress.name }}</code></td>
+                        </tr>
+                        <tr>
+                            <th>Hosts:</th>
+                            <td>
+                                {% for host in ingress.hosts %}
+                                <code>{{ host }}</code>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>TLS:</th>
+                            <td>
+                                {% if ingress.tls %}
+                                    <span class="badge bg-success"><i class="fas fa-lock"></i> Enabled</span>
+                                {% else %}
+                                    <span class="badge bg-secondary"><i class="fas fa-unlock"></i> Disabled</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Test URL:</th>
+                            <td>
+                                {% if ingress.tls %}
+                                <a href="https://{{ spec.host }}" target="_blank" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-external-link-alt"></i> Open https://{{ spec.host }}
+                                </a>
+                                {% else %}
+                                <a href="http://{{ spec.host }}" target="_blank" class="btn btn-sm btn-secondary">
+                                    <i class="fas fa-external-link-alt"></i> Open http://{{ spec.host }}
+                                </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i> No ingress found. The operator may still be processing this template.
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-clock"></i> Metadata</h5>
+                </div>
+                <div class="card-body">
+                    <strong>Created:</strong><br>
+                    {{ meta.creationTimestamp }}<br><br>
+
+                    {% if status.get('created') %}
+                    <strong>Operator Created:</strong><br>
+                    {{ status.created }}<br><br>
+                    {% endif %}
+
+                    {% if status.get('lastUpdated') %}
+                    <strong>Last Updated:</strong><br>
+                    {{ status.lastUpdated }}<br><br>
+                    {% endif %}
+
+                    {% if status.get('ingressName') %}
+                    <strong>Ingress Name:</strong><br>
+                    <code>{{ status.ingressName }}</code><br><br>
+                    {% endif %}
+
+                    {% if status.get('serviceName') %}
+                    <strong>External Service:</strong><br>
+                    <code>{{ status.serviceName }}</code><br><br>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-terminal"></i> Quick Actions</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('ingress.export_yaml', cluster_id=cluster.id, namespace=meta.namespace, name=meta.name) }}"
+                       class="list-group-item list-group-item-action" target="_blank">
+                        <i class="fas fa-file-code"></i> View YAML
+                    </a>
+                    {% if ingress.tls %}
+                    <a href="https://{{ spec.host }}" class="list-group-item list-group-item-action" target="_blank">
+                        <i class="fas fa-external-link-alt"></i> Test HTTPS
+                    </a>
+                    {% else %}
+                    <a href="http://{{ spec.host }}" class="list-group-item list-group-item-action" target="_blank">
+                        <i class="fas fa-external-link-alt"></i> Test HTTP
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('ingress.list_cluster', cluster_id=cluster.id) }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-arrow-left"></i> Back to List
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

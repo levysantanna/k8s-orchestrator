@@ -1,0 +1,157 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-system
+  labels:
+    name: ingress-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingress-operator
+  namespace: ingress-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ingress-operator
+rules:
+# IngressTemplate CRD permissions
+- apiGroups:
+  - ingress.k8s-orchestrator.io
+  resources:
+  - ingresstemplates
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ingress.k8s-orchestrator.io
+  resources:
+  - ingresstemplates/status
+  verbs:
+  - get
+  - update
+  - patch
+# Ingress permissions
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+# Service and Endpoints permissions (for external backends)
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - endpoints
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+# Namespace permissions
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+# Events permissions (for kopf)
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+# kopf framework permissions
+- apiGroups:
+  - kopf.dev
+  resources:
+  - clusterkopfpeerings
+  verbs:
+  - list
+  - watch
+  - patch
+  - get
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ingress-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ingress-operator
+subjects:
+- kind: ServiceAccount
+  name: ingress-operator
+  namespace: ingress-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-operator
+  namespace: ingress-system
+  labels:
+    app: ingress-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingress-operator
+  template:
+    metadata:
+      labels:
+        app: ingress-operator
+    spec:
+      serviceAccountName: ingress-operator
+      containers:
+      - name: operator
+        image: ghcr.io/levysantanna/k8s-orchestrator-ingress-operator:latest
+        imagePullPolicy: Always
+        env:
+        - name: KOPF_PRIORITY
+          value: "100"
+        - name: KOPF_FINALIZER
+          value: ingress-operator.k8s-orchestrator.io/cleanup
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL

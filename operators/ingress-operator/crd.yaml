@@ -1,0 +1,207 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ingresstemplates.ingress.k8s-orchestrator.io
+spec:
+  group: ingress.k8s-orchestrator.io
+  names:
+    kind: IngressTemplate
+    listKind: IngressTemplateList
+    plural: ingresstemplates
+    singular: ingresstemplate
+    shortNames:
+    - it
+    - ingtemp
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            required:
+            - host
+            - backend
+            properties:
+              enabled:
+                type: boolean
+                description: "Enable or disable this ingress template"
+                default: true
+              host:
+                type: string
+                description: "Hostname for the ingress (e.g., app.comunatec.org)"
+                pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$'
+              tls:
+                type: object
+                description: "TLS/HTTPS configuration"
+                properties:
+                  enabled:
+                    type: boolean
+                    description: "Enable TLS/HTTPS"
+                    default: false
+                  clusterIssuer:
+                    type: string
+                    description: "cert-manager ClusterIssuer name (e.g., letsencrypt-prod)"
+                    default: "letsencrypt-prod"
+                  secretName:
+                    type: string
+                    description: "TLS secret name (auto-generated if not provided)"
+                  useWildcard:
+                    type: boolean
+                    description: "Use existing wildcard certificate (e.g., wildcard-comunatec-org-tls)"
+                    default: false
+                  wildcardSecretName:
+                    type: string
+                    description: "Wildcard secret name when useWildcard is true"
+              backend:
+                type: object
+                description: "Backend service or external endpoint configuration"
+                required:
+                - type
+                properties:
+                  type:
+                    type: string
+                    description: "Backend type: 'service' for K8s service or 'external' for external endpoint"
+                    enum:
+                    - service
+                    - external
+                  serviceName:
+                    type: string
+                    description: "K8s service name (required when type=service)"
+                  servicePort:
+                    type: integer
+                    description: "K8s service port (required when type=service)"
+                    minimum: 1
+                    maximum: 65535
+                  externalIP:
+                    type: string
+                    description: "External IP address (required when type=external)"
+                    pattern: '^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2})$'
+                  externalPort:
+                    type: integer
+                    description: "External service port (required when type=external)"
+                    minimum: 1
+                    maximum: 65535
+                    default: 80
+                  externalHttpsPort:
+                    type: integer
+                    description: "External HTTPS port (optional, for type=external)"
+                    minimum: 1
+                    maximum: 65535
+              paths:
+                type: array
+                description: "Path-based routing rules (for advanced multi-service routing)"
+                items:
+                  type: object
+                  required:
+                  - path
+                  properties:
+                    path:
+                      type: string
+                      description: "URL path (e.g., / or /api)"
+                    pathType:
+                      type: string
+                      description: "Path match type"
+                      enum:
+                      - Prefix
+                      - Exact
+                      - ImplementationSpecific
+                      default: "Prefix"
+                    serviceName:
+                      type: string
+                      description: "Service name for this path"
+                    servicePort:
+                      type: integer
+                      description: "Service port for this path"
+                      minimum: 1
+                      maximum: 65535
+                    priority:
+                      type: integer
+                      description: "Traefik router priority (higher = processed first)"
+                      minimum: 1
+                      maximum: 1000
+                      default: 1
+              annotations:
+                type: object
+                description: "Custom annotations for the ingress (e.g., Traefik middlewares)"
+                additionalProperties:
+                  type: string
+              ingressClassName:
+                type: string
+                description: "Ingress class name"
+                default: "traefik"
+          status:
+            type: object
+            properties:
+              ingressName:
+                type: string
+                description: "Name of the created Ingress resource"
+              serviceName:
+                type: string
+                description: "Name of the created Service (for external backends)"
+              endpointsName:
+                type: string
+                description: "Name of the created Endpoints (for external backends)"
+              created:
+                type: string
+                format: date-time
+                description: "Creation timestamp"
+              lastUpdated:
+                type: string
+                format: date-time
+                description: "Last update timestamp"
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      description: "Condition type (Ready, Error, etc.)"
+                    status:
+                      type: string
+                      description: "Condition status (True, False, Unknown)"
+                      enum:
+                      - "True"
+                      - "False"
+                      - "Unknown"
+                    reason:
+                      type: string
+                      description: "Machine-readable reason"
+                    message:
+                      type: string
+                      description: "Human-readable message"
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                      description: "Last time condition changed"
+    additionalPrinterColumns:
+    - name: Host
+      type: string
+      description: Ingress hostname
+      jsonPath: .spec.host
+    - name: Backend
+      type: string
+      description: Backend type
+      jsonPath: .spec.backend.type
+    - name: TLS
+      type: boolean
+      description: TLS enabled
+      jsonPath: .spec.tls.enabled
+    - name: Enabled
+      type: boolean
+      description: Template enabled
+      jsonPath: .spec.enabled
+    - name: Ingress
+      type: string
+      description: Created ingress name
+      jsonPath: .status.ingressName
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    subresources:
+      status: {}

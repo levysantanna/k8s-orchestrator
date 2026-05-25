@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Create Ingress Template{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-plus"></i> Create Ingress Template</h4>
+                    <p class="mb-0 text-muted">Cluster: <strong>{{ cluster.name }}</strong></p>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="ingressForm">
+                        <!-- Basic Info -->
+                        <div class="mb-4">
+                            <h5>Basic Information</h5>
+                            <div class="mb-3">
+                                <label for="host" class="form-label">Host / Domain <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="host" name="host" placeholder="app.comunatec.org" required>
+                                <div class="form-text">Fully qualified domain name for the ingress</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="namespace" class="form-label">Namespace <span class="text-danger">*</span></label>
+                                <select class="form-select" id="namespace" name="namespace" required>
+                                    {% for ns in namespaces %}
+                                    <option value="{{ ns }}" {% if ns == 'default' %}selected{% endif %}>{{ ns }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Backend Configuration -->
+                        <div class="mb-4">
+                            <h5>Backend Configuration</h5>
+                            <div class="btn-group mb-3" role="group">
+                                <input type="radio" class="btn-check" name="backend_type" id="backend_service" value="service" checked>
+                                <label class="btn btn-outline-primary" for="backend_service">
+                                    <i class="fas fa-cube"></i> K8s Service
+                                </label>
+
+                                <input type="radio" class="btn-check" name="backend_type" id="backend_external" value="external">
+                                <label class="btn btn-outline-info" for="backend_external">
+                                    <i class="fas fa-server"></i> External Server
+                                </label>
+                            </div>
+
+                            <!-- Service Backend -->
+                            <div id="service_fields">
+                                <div class="row">
+                                    <div class="col-md-8 mb-3">
+                                        <label for="service_name" class="form-label">Service Name</label>
+                                        <input type="text" class="form-control" id="service_name" name="service_name" placeholder="my-app">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label for="service_port" class="form-label">Port</label>
+                                        <input type="number" class="form-control" id="service_port" name="service_port" value="80">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- External Backend -->
+                            <div id="external_fields" style="display:none;">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="external_ip" class="form-label">External IP Address</label>
+                                        <input type="text" class="form-control" id="external_ip" name="external_ip" placeholder="76.13.89.244">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label for="external_port" class="form-label">HTTP Port</label>
+                                        <input type="number" class="form-control" id="external_port" name="external_port" value="80">
+                                    </div>
+                                    <div class="col-md-3 mb-3">
+                                        <label for="external_https_port" class="form-label">HTTPS Port (optional)</label>
+                                        <input type="number" class="form-control" id="external_https_port" name="external_https_port" placeholder="443">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TLS Configuration -->
+                        <div class="mb-4">
+                            <h5>TLS / HTTPS Configuration</h5>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="tls_enabled" name="tls_enabled" checked>
+                                <label class="form-check-label" for="tls_enabled">
+                                    <strong>Enable TLS/HTTPS</strong>
+                                </label>
+                            </div>
+
+                            <div id="tls_fields">
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="use_wildcard" name="use_wildcard" checked>
+                                    <label class="form-check-label" for="use_wildcard">
+                                        Use existing wildcard certificate (faster, recommended)
+                                    </label>
+                                </div>
+
+                                <div id="wildcard_field" class="mb-3">
+                                    <label for="wildcard_secret" class="form-label">Wildcard Secret Name</label>
+                                    <input type="text" class="form-control" id="wildcard_secret" name="wildcard_secret" value="wildcard-comunatec-org-tls">
+                                </div>
+
+                                <div id="cert_issuer_field" class="mb-3" style="display:none;">
+                                    <label for="cluster_issuer" class="form-label">ClusterIssuer (cert-manager)</label>
+                                    <input type="text" class="form-control" id="cluster_issuer" name="cluster_issuer" value="letsencrypt-prod">
+                                    <div class="form-text">cert-manager will create a new certificate for this domain</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Options -->
+                        <div class="mb-4">
+                            <h5>Advanced Options</h5>
+                            <div class="mb-3">
+                                <label for="ingress_class" class="form-label">Ingress Class</label>
+                                <input type="text" class="form-control" id="ingress_class" name="ingress_class" value="traefik">
+                            </div>
+                            <div class="mb-3">
+                                <label for="custom_annotations" class="form-label">Custom Annotations (one per line)</label>
+                                <textarea class="form-control" id="custom_annotations" name="custom_annotations" rows="3"
+                                          placeholder="traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd"></textarea>
+                                <div class="form-text">Format: key: value</div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-check"></i> Create Ingress Template
+                            </button>
+                            <a href="{{ url_for('ingress.list_cluster', cluster_id=cluster.id) }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar with Presets and Help -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5><i class="fas fa-magic"></i> Quick Presets</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for preset in presets %}
+                    <button type="button" class="list-group-item list-group-item-action preset-btn" data-preset="{{ preset.id }}">
+                        <i class="{{ preset.icon }}"></i> <strong>{{ preset.name }}</strong>
+                        <br><small class="text-muted">{{ preset.description }}</small>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-info-circle"></i> Help</h5>
+                </div>
+                <div class="card-body">
+                    <h6>External Server</h6>
+                    <p class="small">Use when proxying to a service outside Kubernetes (e.g., Hostinger, VPS)</p>
+
+                    <h6>K8s Service</h6>
+                    <p class="small">Use for applications running inside this cluster</p>
+
+                    <h6>Wildcard Certificate</h6>
+                    <p class="small">Faster deployment, uses existing *.domain certificate. No cert-manager delay.</p>
+
+                    <h6>Auto TLS</h6>
+                    <p class="small">cert-manager creates new certificate (2-5 min delay on first creation)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Toggle backend fields
+document.querySelectorAll('input[name="backend_type"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const serviceFields = document.getElementById('service_fields');
+        const externalFields = document.getElementById('external_fields');
+
+        if (this.value === 'service') {
+            serviceFields.style.display = 'block';
+            externalFields.style.display = 'none';
+        } else {
+            serviceFields.style.display = 'none';
+            externalFields.style.display = 'block';
+        }
+    });
+});
+
+// Toggle TLS fields
+document.getElementById('tls_enabled').addEventListener('change', function() {
+    document.getElementById('tls_fields').style.display = this.checked ? 'block' : 'none';
+});
+
+// Toggle wildcard/issuer fields
+document.getElementById('use_wildcard').addEventListener('change', function() {
+    const wildcardField = document.getElementById('wildcard_field');
+    const issuerField = document.getElementById('cert_issuer_field');
+
+    if (this.checked) {
+        wildcardField.style.display = 'block';
+        issuerField.style.display = 'none';
+    } else {
+        wildcardField.style.display = 'none';
+        issuerField.style.display = 'block';
+    }
+});
+
+// Preset buttons
+document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const presetId = this.dataset.preset;
+        // Reload page with preset parameter
+        window.location.href = "{{ url_for('ingress.create', cluster_id=cluster.id) }}?preset=" + presetId;
+    });
+});
+</script>
+{% endblock %}

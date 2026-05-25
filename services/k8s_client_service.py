@@ -394,3 +394,39 @@ class K8sClientService:
 
         # Assume bytes if no unit
         return float(memory_str) / (1024 ** 3)
+
+    def get_custom_resources(self, group: str, version: str, plural: str, namespace: str = None) -> list:
+        """
+        Get custom resources from the cluster
+
+        Args:
+            group: API group (e.g., 'ingress.k8s-orchestrator.io')
+            version: API version (e.g., 'v1')
+            plural: Resource plural (e.g., 'ingresstemplates')
+            namespace: Namespace (optional, if None gets cluster-wide)
+
+        Returns:
+            list: List of custom resource objects
+        """
+        try:
+            custom_api = client.CustomObjectsApi(self.api_client)
+
+            if namespace:
+                response = custom_api.list_namespaced_custom_object(
+                    group=group,
+                    version=version,
+                    namespace=namespace,
+                    plural=plural
+                )
+            else:
+                response = custom_api.list_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural=plural
+                )
+
+            return response.get('items', [])
+        except ApiException as e:
+            if e.status == 404:
+                return []
+            raise Exception(f"Failed to list custom resources: {e.reason}")
