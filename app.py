@@ -33,6 +33,7 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from functions.database import User
 from functions.base import get_db_session
+from services.scheduler_service import get_scheduler
 
 # Import blueprints
 from controllers.auth_controller import auth_bp
@@ -91,6 +92,15 @@ def create_app():
             return None
         finally:
             db.close()
+
+    # Initialize APScheduler for background jobs
+    scheduler = get_scheduler()
+    scheduler.start()
+    app.logger.info("Background scheduler initialized")
+
+    # Register shutdown handler
+    import atexit
+    atexit.register(lambda: scheduler.shutdown())
 
     # Register blueprints
     app.register_blueprint(auth_bp)

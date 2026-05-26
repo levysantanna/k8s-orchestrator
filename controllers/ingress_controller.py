@@ -3,7 +3,7 @@ Ingress Controller
 Handles web UI routes for IngressTemplate management
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from functions.auth import require_login, require_admin
+from functions.decorators import require_login, require_admin
 from functions.base import get_db_session
 from models.cluster import Cluster
 from services.ingress_service import IngressService
