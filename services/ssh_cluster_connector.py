@@ -170,33 +170,51 @@ class SSHClusterConnector:
                     # Convert string private key to file-like object
                     key_file = io.StringIO(self.private_key)
 
-                    # Try different key types
+                    # Try different key types (DSS/DSA deprecated in paramiko 5.0+)
                     pkey = None
                     key_types = [
-                        paramiko.RSAKey,
-                        paramiko.Ed25519Key,
-                        paramiko.ECDSAKey,
-                        paramiko.DSSKey
+                        ('RSA', paramiko.RSAKey),
+                        ('Ed25519', paramiko.Ed25519Key),
+                        ('ECDSA', paramiko.ECDSAKey)
                     ]
 
                     last_error = None
-                    for key_type in key_types:
+                    for key_name, key_type in key_types:
                         try:
                             key_file.seek(0)
                             pkey = key_type.from_private_key(
                                 key_file,
                                 password=self.password
                             )
+                            logger.info(f"Successfully loaded {key_name} private key")
+                            break
+                        except paramiko.ssh_exception.SSHException as e:
+                            # Wrong key type, try next
+                            last_error = e
+                            continue
+                        except paramiko.ssh_exception.PasswordRequiredException:
+                            # Key requires passphrase but none provided
+                            last_error = "Private key is encrypted but no passphrase provided"
                             break
                         except Exception as e:
                             last_error = e
                             continue
 
                     if not pkey:
-                        logger.error(f"Failed to import private key: {last_error}")
+                        error_msg = str(last_error) if last_error else "Unknown key format"
+                        logger.error(f"Failed to import private key: {error_msg}")
+
+                        # Provide helpful error message
+                        if "passphrase" in error_msg.lower():
+                            friendly_error = "Private key is encrypted. Please provide the passphrase in the password field."
+                        elif "not a valid" in error_msg.lower():
+                            friendly_error = "Invalid private key format. Supported: RSA, Ed25519, ECDSA (DSA/DSS deprecated)"
+                        else:
+                            friendly_error = f"Cannot load private key: {error_msg}"
+
                         return {
                             'success': False,
-                            'error': f'Invalid private key format: {str(last_error)}'
+                            'error': friendly_error
                         }
 
                     connect_kwargs['pkey'] = pkey
@@ -206,7 +224,7 @@ class SSHClusterConnector:
                     logger.error(f"Failed to load private key: {e}")
                     return {
                         'success': False,
-                        'error': f'Invalid private key: {str(e)}'
+                        'error': f'Error loading private key: {str(e)}'
                     }
 
             # Add password if provided (used for password auth or key passphrase)
