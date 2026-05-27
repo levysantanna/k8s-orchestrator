@@ -92,38 +92,56 @@ def add_via_kubeconfig():
 @require_admin
 def add_via_ssh():
     """Add cluster via SSH connection"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     try:
+        # Log all form data for debugging
+        logger.info(f"SSH add form data keys: {list(request.form.keys())}")
+        logger.info(f"SSH add files: {list(request.files.keys())}")
+
         # Validate required fields
         cluster_name = request.form.get('name', '').strip()
         ssh_host = request.form.get('ssh_host', '').strip()
         ssh_username = request.form.get('ssh_username', '').strip()
 
+        logger.info(f"SSH cluster add attempt: name={cluster_name}, host={ssh_host}, user={ssh_username}")
+
         if not all([cluster_name, ssh_host, ssh_username]):
             flash('Cluster name, SSH host, and username are required', 'danger')
+            logger.warning("SSH add failed: missing required fields")
             return redirect(url_for('cluster.add_cluster', method='ssh'))
 
         # Get SSH credentials
         ssh_port = int(request.form.get('ssh_port', 22))
         auth_method = request.form.get('auth_method', 'key')
 
+        logger.info(f"Auth method: {auth_method}, SSH port: {ssh_port}")
+
         ssh_password = None
         ssh_key_content = None
 
         if auth_method == 'key':
             ssh_key_content = _extract_ssh_private_key()
+            logger.info(f"Private key extracted: {bool(ssh_key_content)}, length: {len(ssh_key_content) if ssh_key_content else 0}")
             if not ssh_key_content:
                 flash('Private key is required for key-based authentication', 'danger')
+                logger.warning("SSH add failed: no private key provided")
                 return redirect(url_for('cluster.add_cluster', method='ssh'))
         else:
             ssh_password = request.form.get('ssh_password', '').strip()
+            logger.info(f"Password provided: {bool(ssh_password)}")
             if not ssh_password:
                 flash('Password is required for password authentication', 'danger')
+                logger.warning("SSH add failed: no password provided")
                 return redirect(url_for('cluster.add_cluster', method='ssh'))
 
         # Get kubeconfig path
         kubeconfig_path = _get_kubeconfig_path_from_form()
+        logger.info(f"Kubeconfig path: {kubeconfig_path}")
 
         # Connect via SSH and retrieve kubeconfig
+        logger.info(f"Initiating SSH connection to {ssh_host}:{ssh_port}")
         connector = SSHClusterConnector(
             host=ssh_host,
             port=ssh_port,
@@ -136,8 +154,11 @@ def add_via_ssh():
             kubeconfig_path=kubeconfig_path
         )
 
+        logger.info(f"Connection result: success={connection_result.get('success')}, error={connection_result.get('error', 'none')}")
+
         if not connection_result['success']:
             flash(f"Connection failed: {connection_result['error']}", 'danger')
+            logger.error(f"SSH connection failed: {connection_result['error']}")
             return redirect(url_for('cluster.add_cluster', method='ssh'))
 
         # Encode kubeconfig

@@ -41,6 +41,7 @@ from controllers.dashboard_controller import dashboard_bp
 from controllers.cluster_controller import cluster_bp
 from controllers.deployment_controller import deployment_bp
 from controllers.ingress_controller import ingress_bp
+from controllers.monitor_controller import monitor_bp
 
 def setup_logging(app):
     """Configure logging for the application"""
@@ -108,6 +109,7 @@ def create_app():
     app.register_blueprint(cluster_bp)
     app.register_blueprint(deployment_bp)
     app.register_blueprint(ingress_bp)
+    app.register_blueprint(monitor_bp)
 
     # Add template filters
     @app.template_filter('status_color')

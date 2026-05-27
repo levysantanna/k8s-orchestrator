@@ -5,10 +5,11 @@ Handles SSH connections to retrieve kubeconfig from remote clusters
 Copyright (C) 2026 K8s Orchestrator Contributors
 Licensed under GPL-3.0
 """
-import asyncio
-import asyncssh
+import paramiko
 from typing import Optional, Dict
 import logging
+import io
+from services.connection_monitor import connection_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -66,20 +67,28 @@ class SSHClusterConnector:
         Returns:
             dict with 'success', 'kubeconfig', and optional 'error' keys
         """
-        return asyncio.run(self._async_connect_and_retrieve(kubeconfig_path))
+        # Log connection attempt
+        connection_monitor.log_event(
+            event_type='connect',
+            connection_type='ssh',
+            host=self.host,
+            username=self.username,
+            message=f'Attempting SSH connection (port {self.port})',
+            status='info'
+        )
 
-    async def _async_connect_and_retrieve(self, kubeconfig_path: str) -> Dict:
-        """Async implementation of connect and retrieve"""
-        # Step 1: Establish SSH connection
-        connection_result = await self._establish_connection()
-        if not connection_result['success']:
-            return connection_result
-
-        conn = connection_result['connection']
+        ssh_client = None
 
         try:
+            # Step 1: Establish SSH connection
+            connection_result = self._establish_connection()
+            if not connection_result['success']:
+                return connection_result
+
+            ssh_client = connection_result['connection']
+
             # Step 2: Retrieve kubeconfig
-            kubeconfig_result = await self._retrieve_kubeconfig(conn, kubeconfig_path)
+            kubeconfig_result = self._retrieve_kubeconfig(ssh_client, kubeconfig_path)
 
             if not kubeconfig_result['success']:
                 return kubeconfig_result
@@ -89,15 +98,49 @@ class SSHClusterConnector:
                 kubeconfig_result['kubeconfig']
             )
 
+            # Log success
+            connection_monitor.log_event(
+                event_type='info',
+                connection_type='ssh',
+                host=self.host,
+                username=self.username,
+                message=f'Kubeconfig retrieved successfully from {kubeconfig_path}',
+                status='success'
+            )
+
             return {
                 'success': True,
                 'kubeconfig': processed_kubeconfig
             }
 
-        finally:
-            await conn.close()
+        except Exception as e:
+            # Log error
+            connection_monitor.log_event(
+                event_type='error',
+                connection_type='ssh',
+                host=self.host,
+                username=self.username,
+                message=f'Failed to retrieve kubeconfig: {str(e)}',
+                status='error'
+            )
+            raise
 
-    async def _establish_connection(self) -> Dict:
+        finally:
+            if ssh_client:
+                ssh_client.close()
+                logger.info(f"SSH connection closed to {self.host}")
+
+                # Log disconnect
+                connection_monitor.log_event(
+                    event_type='disconnect',
+                    connection_type='ssh',
+                    host=self.host,
+                    username=self.username,
+                    message='SSH connection closed',
+                    status='info'
+                )
+
+    def _establish_connection(self) -> Dict:
         """
         Establish SSH connection to remote server
 
@@ -105,72 +148,159 @@ class SSHClusterConnector:
             dict with 'success', 'connection', and optional 'error'
         """
         try:
+            # Create SSH client
+            ssh_client = paramiko.SSHClient()
+
+            # Auto-add unknown hosts (similar to known_hosts=None in asyncssh)
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
             # Prepare authentication
-            client_keys = None
+            connect_kwargs = {
+                'hostname': self.host,
+                'port': self.port,
+                'username': self.username,
+                'timeout': 30,
+                'banner_timeout': 30,
+                'auth_timeout': 30
+            }
+
+            # Try key-based authentication first
             if self.private_key:
                 try:
-                    client_key = asyncssh.import_private_key(
-                        self.private_key,
-                        passphrase=self.password
-                    )
-                    client_keys = [client_key]
+                    # Convert string private key to file-like object
+                    key_file = io.StringIO(self.private_key)
+
+                    # Try different key types
+                    pkey = None
+                    key_types = [
+                        paramiko.RSAKey,
+                        paramiko.Ed25519Key,
+                        paramiko.ECDSAKey,
+                        paramiko.DSSKey
+                    ]
+
+                    last_error = None
+                    for key_type in key_types:
+                        try:
+                            key_file.seek(0)
+                            pkey = key_type.from_private_key(
+                                key_file,
+                                password=self.password
+                            )
+                            break
+                        except Exception as e:
+                            last_error = e
+                            continue
+
+                    if not pkey:
+                        logger.error(f"Failed to import private key: {last_error}")
+                        return {
+                            'success': False,
+                            'error': f'Invalid private key format: {str(last_error)}'
+                        }
+
+                    connect_kwargs['pkey'] = pkey
+                    logger.info(f"Using private key authentication for {self.username}@{self.host}")
+
                 except Exception as e:
-                    logger.error(f"Failed to import private key: {e}")
+                    logger.error(f"Failed to load private key: {e}")
                     return {
                         'success': False,
                         'error': f'Invalid private key: {str(e)}'
                     }
 
+            # Add password if provided (used for password auth or key passphrase)
+            if self.password and not self.private_key:
+                connect_kwargs['password'] = self.password
+                logger.info(f"Using password authentication for {self.username}@{self.host}")
+
             # Establish connection
-            conn = await asyncssh.connect(
-                self.host,
-                port=self.port,
-                username=self.username,
-                client_keys=client_keys,
-                password=self.password if not client_keys else None,
-                known_hosts=None,  # Disable host key checking
-                connect_timeout=30
-            )
+            ssh_client.connect(**connect_kwargs)
 
             logger.info(f"SSH connection established to {self.username}@{self.host}:{self.port}")
 
+            # Log successful connection
+            connection_monitor.log_event(
+                event_type='connect',
+                connection_type='ssh',
+                host=self.host,
+                username=self.username,
+                message='SSH connection established successfully',
+                status='success'
+            )
+
             return {
                 'success': True,
-                'connection': conn
+                'connection': ssh_client
             }
 
-        except asyncssh.PermissionDenied:
+        except paramiko.AuthenticationException as e:
+            logger.error(f"Authentication failed: {e}")
+            connection_monitor.log_event(
+                event_type='error',
+                connection_type='ssh',
+                host=self.host,
+                username=self.username,
+                message='Authentication failed - check credentials',
+                status='error'
+            )
             return {
                 'success': False,
                 'error': 'Authentication failed. Check your credentials.'
             }
-        except asyncssh.ConnectionLost:
+        except paramiko.SSHException as e:
+            logger.error(f"SSH error: {e}")
+            connection_monitor.log_event(
+                event_type='error',
+                connection_type='ssh',
+                host=self.host,
+                username=self.username,
+                message=f'SSH error: {str(e)}',
+                status='error'
+            )
             return {
                 'success': False,
-                'error': f'Connection lost to {self.host}:{self.port}'
+                'error': f'SSH connection error: {str(e)}'
             }
         except OSError as e:
+            logger.error(f"Network error: {e}")
+            connection_monitor.log_event(
+                event_type='error',
+                connection_type='ssh',
+                host=self.host,
+                username=self.username,
+                message=f'Network error: Cannot reach {self.host}:{self.port}',
+                status='error'
+            )
             return {
                 'success': False,
-                'error': f'Network error: {str(e)}'
+                'error': f'Network error: Cannot reach {self.host}:{self.port} - {str(e)}'
             }
         except Exception as e:
             logger.error(f"SSH connection failed: {e}")
+            connection_monitor.log_event(
+                event_type='error',
+                connection_type='ssh',
+                host=self.host,
+                username=self.username,
+                message=f'Connection failed: {str(e)}',
+                status='error'
+            )
             return {
                 'success': False,
                 'error': f'SSH connection failed: {str(e)}'
             }
 
-    async def _retrieve_kubeconfig(
+    def _retrieve_kubeconfig(
         self,
-        conn: asyncssh.SSHClientConnection,
+        ssh_client: paramiko.SSHClient,
         kubeconfig_path: str
     ) -> Dict:
         """
         Retrieve kubeconfig from remote server
 
         Args:
-            conn: Active SSH connection
+            ssh_client: Active SSH connection
             kubeconfig_path: Path to kubeconfig on server
 
         Returns:
@@ -179,25 +309,33 @@ class SSHClusterConnector:
         try:
             # Expand tilde in path
             if kubeconfig_path.startswith('~'):
-                expand_result = await conn.run(f'echo {kubeconfig_path}')
-                if expand_result.exit_status == 0:
-                    kubeconfig_path = expand_result.stdout.strip()
+                stdin, stdout, stderr = ssh_client.exec_command(f'echo {kubeconfig_path}')
+                expanded_path = stdout.read().decode('utf-8').strip()
+                if expanded_path:
+                    kubeconfig_path = expanded_path
+
+            logger.info(f"Attempting to read kubeconfig from {kubeconfig_path}")
 
             # Try to read kubeconfig with sudo
-            result = await conn.run(f'sudo cat {kubeconfig_path}')
+            stdin, stdout, stderr = ssh_client.exec_command(f'sudo cat {kubeconfig_path}')
+            exit_status = stdout.channel.recv_exit_status()
 
-            if result.exit_status != 0:
+            if exit_status != 0:
                 # Try without sudo
-                result = await conn.run(f'cat {kubeconfig_path}')
+                logger.info("Sudo failed, trying without sudo")
+                stdin, stdout, stderr = ssh_client.exec_command(f'cat {kubeconfig_path}')
+                exit_status = stdout.channel.recv_exit_status()
 
-            if result.exit_status != 0:
+            if exit_status != 0:
+                error_msg = stderr.read().decode('utf-8').strip()
+                logger.error(f"Failed to read kubeconfig: {error_msg}")
                 return {
                     'success': False,
                     'error': f'Cannot read kubeconfig at {kubeconfig_path}. '
-                             f'Check path and permissions.'
+                             f'Check path and permissions. Error: {error_msg}'
                 }
 
-            kubeconfig_content = result.stdout
+            kubeconfig_content = stdout.read().decode('utf-8')
 
             if not kubeconfig_content or len(kubeconfig_content) < 50:
                 return {
@@ -205,7 +343,7 @@ class SSHClusterConnector:
                     'error': f'Kubeconfig at {kubeconfig_path} is empty or invalid'
                 }
 
-            logger.info(f"Retrieved kubeconfig from {kubeconfig_path}")
+            logger.info(f"Successfully retrieved kubeconfig from {kubeconfig_path} ({len(kubeconfig_content)} bytes)")
 
             return {
                 'success': True,
@@ -239,7 +377,9 @@ class SSHClusterConnector:
         ]
 
         for old, new in replacements:
-            processed = processed.replace(old, new)
+            if old in processed:
+                processed = processed.replace(old, new)
+                logger.info(f"Replaced '{old}' with '{new}' in kubeconfig")
 
         return processed
 
